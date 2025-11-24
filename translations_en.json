@@ -1,0 +1,10 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "UniFi Access Setup",
+        "description": "Enter the host and API token for your UniFi Access controller."
+      }
+    }
+  }
+}
