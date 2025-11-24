@@ -1,19 +1,30 @@
 import aiohttp
-import async_timeout
 
 class UniFiAccessAPI:
-    def __init__(self, host, token, hass):
+    def __init__(self, host, token=None, username=None, password=None, hass=None):
         self.host = host
         self.token = token
+        self.username = username
+        self.password = password
         self.hass = hass
         self.session = aiohttp.ClientSession()
 
-    async def get(self, path):
-        headers = {"Authorization": f"Bearer {self.token}"}
-        async with async_timeout.timeout(10):
-            async with self.session.get(f"https://{self.host}/api/access/v1/{path}", headers=headers, ssl=False) as resp:
-                resp.raise_for_status()
-                return await resp.json()
+    async def get_headers(self):
+        if self.token:
+            return {"Authorization": f"Bearer {self.token}"}
+        return None
 
-    async def close(self):
-        await self.session.close()
+    async def get_devices(self):
+        url = f"https://{self.host}/api/devices"
+        headers = await self.get_headers()
+        auth = None
+        if not headers and self.username and self.password:
+            auth = aiohttp.BasicAuth(self.username, self.password)
+
+        try:
+            async with self.session.get(url, headers=headers, auth=auth, ssl=False) as resp:
+                if resp.status == 200:
+                    return await resp.json()
+                return None
+        except Exception:
+            return None
