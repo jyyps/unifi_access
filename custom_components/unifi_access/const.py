@@ -1,3 +1,5 @@
 DOMAIN = "unifi_access"
 CONF_HOST = "host"
 CONF_TOKEN = "token"
+CONF_USERNAME = "username"
+CONF_PASSWORD = "password"
