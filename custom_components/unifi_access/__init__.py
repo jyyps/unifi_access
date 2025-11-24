@@ -1,22 +1,42 @@
-from homeassistant.config_entries import ConfigEntry
+import logging
 from homeassistant.core import HomeAssistant
 from .const import DOMAIN
 from .api import UniFiAccessAPI
 from .websocket import UniFiAccessWebsocket
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
-    api = UniFiAccessAPI(entry.data["host"], entry.data["token"], hass)
-    ws = UniFiAccessWebsocket(api)
-    await ws.connect()
+_LOGGER = logging.getLogger(__name__)
 
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = {"api": api, "ws": ws}
-
-    hass.config_entries.async_setup_platforms(entry, ["binary_sensor", "lock", "sensor"])
+async def async_setup(hass: HomeAssistant, config: dict):
+    """Set up the integration via configuration.yaml (optional)."""
     return True
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
-    data = hass.data[DOMAIN][entry.entry_id]
-    await data["ws"].close()
+async def async_setup_entry(hass: HomeAssistant, entry):
+    """Set up UniFi Access from a config entry."""
+    host = entry.data["host"]
+    token = entry.data["token"]
+
+    # Initialize API
+    api = UniFiAccessAPI(host, token, hass)
+
+    # Connect WebSocket
+    ws = UniFiAccessWebsocket(api, hass)
+    hass.loop.create_task(ws.connect())
+
+    # Save objects to hass.data
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
+        "api": api,
+        "ws": ws
+    }
+
+    # Set up platforms
+    for platform in ["binary_sensor", "lock", "sensor"]:
+        hass.async_create_task(
+            hass.config_entries.async_forward_entry_setup(entry, platform)
+        )
+
+    return True
+
+async def async_unload_entry(hass, entry):
+    """Unload a config entry."""
     hass.data[DOMAIN].pop(entry.entry_id)
     return True
