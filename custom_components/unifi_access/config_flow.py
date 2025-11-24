@@ -10,11 +10,12 @@ class UniFiAccessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_PUSH
 
     async def async_step_user(self, user_input=None):
+        """Step 1: Ask for host and auth type."""
         errors = {}
 
         if user_input is not None:
-            # Save auth type and move to credentials step
-            self.hass.data["auth_type"] = user_input.get("auth_type")
+            # Save auth_type in context
+            self.context["auth_type"] = user_input["auth_type"]
             return await self.async_step_credentials()
 
         data_schema = vol.Schema({
@@ -22,11 +23,16 @@ class UniFiAccessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Required("auth_type", default="token"): vol.In(["token", "username_password"])
         })
 
-        return self.async_show_form(step_id="user", data_schema=data_schema, errors=errors)
+        return self.async_show_form(
+            step_id="user",
+            data_schema=data_schema,
+            errors=errors
+        )
 
     async def async_step_credentials(self, user_input=None):
+        """Step 2: Ask for credentials based on auth_type."""
         errors = {}
-        auth_type = self.hass.data.get("auth_type", "token")
+        auth_type = self.context.get("auth_type", "token")
 
         if user_input is not None:
             host = user_input[CONF_HOST]
@@ -40,10 +46,18 @@ class UniFiAccessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 if devices is None:
                     errors["base"] = "cannot_connect"
                 else:
-                    return self.async_create_entry(title=f"UniFi Access ({host})", data=user_input)
+                    # Merge host and credentials
+                    data = {CONF_HOST: host}
+                    if auth_type == "token":
+                        data[CONF_TOKEN] = token
+                    else:
+                        data[CONF_USERNAME] = username
+                        data[CONF_PASSWORD] = password
+                    return self.async_create_entry(title=f"UniFi Access ({host})", data=data)
             except Exception:
                 errors["base"] = "cannot_connect"
 
+        # Show proper form depending on auth type
         if auth_type == "token":
             data_schema = vol.Schema({
                 vol.Required(CONF_HOST): str,
@@ -56,4 +70,8 @@ class UniFiAccessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_PASSWORD): str
             })
 
-        return self.async_show_form(step_id="credentials", data_schema=data_schema, errors=errors)
+        return self.async_show_form(
+            step_id="credentials",
+            data_schema=data_schema,
+            errors=errors
+        )
