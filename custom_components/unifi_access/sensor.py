@@ -2,25 +2,33 @@ from homeassistant.components.sensor import SensorEntity
 from .const import DOMAIN
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    data = hass.data[DOMAIN][entry.entry_id]["api"]
-    devices = await data.get("devices")
-    entities = []
+    """Set up sensors from a config entry."""
+    api = hass.data[DOMAIN][entry.entry_id]["api"]
+    devices = await api.get_devices()
+    sensors = []
 
-    for sensor in devices.get("sensors", []):
-        entities.append(UniFiSensor(sensor, hass))
+    for device in devices:
+        if "battery" in device:
+            sensors.append(UniFiBatterySensor(device))
 
-    async_add_entities(entities)
+    async_add_entities(sensors, True)
 
-class UniFiSensor(SensorEntity):
-    def __init__(self, sensor, hass):
-        self._sensor = sensor
-        self._hass = hass
-        self._attr_name = sensor["name"]
-        self._attr_native_value = sensor.get("value")
+class UniFiBatterySensor(SensorEntity):
+    """Battery sensor for UniFi Access devices."""
 
-        hass.bus.async_listen("unifi_access_event", self._handle_event)
+    def __init__(self, device):
+        self.device = device
+        self._attr_name = f"{device.get('name', 'UniFi Device')} Battery"
+        self._attr_native_value = device.get("battery", 100)
 
-    def _handle_event(self, event):
-        if event.get("device_id") == self._sensor["id"]:
-            self._attr_native_value = event.get("value", self._attr_native_value)
-            self.schedule_update_ha_state()
+    @property
+    def native_value(self):
+        return self._attr_native_value
+
+    @property
+    def device_info(self):
+        return {
+            "identifiers": {(DOMAIN, self.device.get("id"))},
+            "name": self.device.get("name", "UniFi Device"),
+            "model": self.device.get("model", "UniFi Sensor"),
+        }
